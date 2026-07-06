@@ -499,24 +499,36 @@
     if (!sidebarToggle || !sidebar) return;
 
     var storageKey = "docs-engine-sidebar-collapsed";
-    var isCollapsed = localStorage.getItem(storageKey) === "true";
+    var layoutEl = sidebar.closest(".layout");
 
-    if (isCollapsed) {
-      sidebar.classList.add("collapsed");
-      sidebarToggle.setAttribute("aria-expanded", "false");
+    function updateToggleButton(collapsed) {
+      sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+      sidebarToggle.setAttribute(
+        "aria-label",
+        collapsed ? (config.sidebarExpandLabel || "Expand menu") : (config.sidebarCollapseLabel || "Collapse menu")
+      );
+      sidebarToggle.textContent = collapsed ? "☰" : "←";
     }
 
-    sidebarToggle.addEventListener("click", function () {
-      var collapsed = sidebar.classList.toggle("collapsed");
+    function setSidebarCollapsed(collapsed) {
+      sidebar.classList.toggle("collapsed", collapsed);
+      if (layoutEl) layoutEl.classList.toggle("sidebar-collapsed", collapsed);
       localStorage.setItem(storageKey, String(collapsed));
-      sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+      updateToggleButton(collapsed);
+    }
+
+    setSidebarCollapsed(localStorage.getItem(storageKey) === "true");
+
+    sidebarToggle.addEventListener("click", function (event) {
+      event.stopPropagation();
+      setSidebarCollapsed(!sidebar.classList.contains("collapsed"));
     });
 
     // Keyboard shortcut (Cmd+\ or Ctrl+\)
     document.addEventListener("keydown", function (event) {
       if ((event.metaKey || event.ctrlKey) && event.key === "\\") {
         event.preventDefault();
-        sidebarToggle.click();
+        setSidebarCollapsed(!sidebar.classList.contains("collapsed"));
       }
     });
   }
