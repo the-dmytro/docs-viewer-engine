@@ -104,6 +104,39 @@
     },
   };
 
+  var TILE_THEMES = {
+    light: {
+      url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      attribution: "&copy; OpenStreetMap contributors",
+      maxZoom: 19,
+    },
+    dark: {
+      url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+      maxZoom: 19,
+    },
+  };
+
+  function getColorSchemeQuery() {
+    return window.matchMedia("(prefers-color-scheme: dark)");
+  }
+
+  function isDarkTheme() {
+    return getColorSchemeQuery().matches;
+  }
+
+  function createTileLayer(L, dark) {
+    var theme = dark ? TILE_THEMES.dark : TILE_THEMES.light;
+    return L.tileLayer(theme.url, {
+      attribution: theme.attribution,
+      maxZoom: theme.maxZoom,
+    });
+  }
+
+  function markerStrokeColor() {
+    return isDarkTheme() ? "#e5ebe6" : "#ffffff";
+  }
+
   var _mapDataCache = null;
 
   function getMapData() {
@@ -125,6 +158,11 @@
     var embed = opts.embed || false;
 
     if (!container) return;
+
+    if (container._mapThemeHandler) {
+      getColorSchemeQuery().removeEventListener("change", container._mapThemeHandler);
+      container._mapThemeHandler = null;
+    }
 
     var locations = await getMapData();
     var currentAspect = "fit";
@@ -159,12 +197,21 @@
       zoomControl: true,
     });
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
-      maxZoom: 19,
-    }).addTo(map);
+    var tileLayer = createTileLayer(L, isDarkTheme());
+    tileLayer.addTo(map);
 
     var markerLayer = L.featureGroup().addTo(map);
+
+    function applyBasemapTheme() {
+      var dark = isDarkTheme();
+      map.removeLayer(tileLayer);
+      tileLayer = createTileLayer(L, dark);
+      tileLayer.addTo(map);
+      renderMarkers(false);
+    }
+
+    container._mapThemeHandler = applyBasemapTheme;
+    getColorSchemeQuery().addEventListener("change", applyBasemapTheme);
 
     function createPopup(loc) {
       var aspect = ASPECTS[currentAspect];
@@ -216,7 +263,7 @@
         var marker = L.circleMarker([loc.lat, loc.lng], {
           radius: embed ? 7 : 9,
           fillColor: color,
-          color: "#fff",
+          color: markerStrokeColor(),
           weight: 2,
           opacity: 1,
           fillOpacity: 0.85,
