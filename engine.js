@@ -507,7 +507,9 @@
         "aria-label",
         collapsed ? (config.sidebarExpandLabel || "Expand menu") : (config.sidebarCollapseLabel || "Collapse menu")
       );
-      sidebarToggle.textContent = collapsed ? "☰" : "←";
+      sidebarToggle.textContent = collapsed
+        ? "☰"
+        : (config.sidebarCollapseLabel || "←");
     }
 
     function setSidebarCollapsed(collapsed) {

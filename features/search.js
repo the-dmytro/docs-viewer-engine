@@ -73,19 +73,18 @@
       return;
     }
 
-    var sidebarHeader = document.querySelector(".sidebar-header");
-    if (!sidebarHeader) return;
+    var sidebarContent = document.querySelector(".sidebar-content");
+    if (!sidebarContent) return;
 
     // Create search box
     var searchContainer = document.createElement("div");
     searchContainer.className = "search-box-container";
-    searchContainer.style.marginTop = "1rem";
 
     var searchInput = document.createElement("input");
     searchInput.type = "text";
     searchInput.className = "search-box-input";
-    searchInput.placeholder = "Search...";
-    searchInput.setAttribute("aria-label", "Search documentation");
+    searchInput.placeholder = config.searchPlaceholder || "Search...";
+    searchInput.setAttribute("aria-label", config.searchLabel || "Search documentation");
 
     var resultsContainer = document.createElement("div");
     resultsContainer.className = "search-results";
@@ -93,7 +92,7 @@
 
     searchContainer.appendChild(searchInput);
     searchContainer.appendChild(resultsContainer);
-    sidebarHeader.parentNode.insertBefore(searchContainer, sidebarHeader.nextSibling);
+    sidebarContent.insertBefore(searchContainer, sidebarContent.firstChild);
 
     var debounceTimer = null;
 
