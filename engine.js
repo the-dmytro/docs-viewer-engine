@@ -236,6 +236,9 @@
         rootList.appendChild(navLink(doc.path, doc.title, activePath));
       });
     }
+    if (config.features && config.features.map && config.mapRoute) {
+      rootList.appendChild(navLink(config.mapRoute, config.mapLabel || "Map", activePath));
+    }
     rootSection.appendChild(rootList);
     tree.appendChild(rootSection);
 
@@ -321,10 +324,61 @@
     }
   }
 
+  function mapRoutePath() {
+    return config.mapRoute || "map";
+  }
+
+  function isMapRoute(path) {
+    return !!(config.features && config.features.map && path === mapRoutePath());
+  }
+
+  async function renderMapView() {
+    var mapPath = mapRoutePath();
+    showLoading();
+    currentPath = mapPath;
+    buildSidebar(mapPath);
+    document.body.dataset.section = "";
+
+    if (breadcrumbEl) {
+      breadcrumbEl.innerHTML = "";
+      var home = document.createElement("a");
+      home.href = "#/README.md";
+      home.textContent = config.homeLabel || "Home";
+      home.addEventListener("click", function (event) {
+        event.preventDefault();
+        routeTo("README.md");
+      });
+      breadcrumbEl.appendChild(home);
+      var sep = document.createElement("span");
+      sep.className = "sep";
+      sep.textContent = "/";
+      breadcrumbEl.appendChild(sep);
+      var span = document.createElement("span");
+      span.textContent = config.mapLabel || "Map";
+      breadcrumbEl.appendChild(span);
+    }
+
+    if (articleEl) {
+      articleEl.classList.remove("loading");
+      articleEl.classList.add("map-page");
+      articleEl.innerHTML = '<div id="mapView"></div>';
+    }
+
+    document.title = (config.mapLabel || "Map") + " | " + (config.titleSuffix || config.brand);
+    window.scrollTo({ top: 0, behavior: "instant" });
+
+    await loadFeature("map", "initMap", function (feature) {
+      if (feature && feature.initMap) {
+        feature.initMap(document.getElementById("mapView"), { embed: false });
+      }
+    });
+  }
+
   // Load and render markdown document
   async function loadMarkdown(path) {
     showLoading();
     currentPath = path;
+    if (articleEl) articleEl.classList.remove("map-page");
     buildSidebar(path);
     buildBreadcrumb(path);
     document.body.dataset.section = detectSection(path);
@@ -433,6 +487,10 @@
 
   // Route to path (dispatch)
   function route(path) {
+    if (isMapRoute(path)) {
+      renderMapView();
+      return;
+    }
     loadMarkdown(path);
   }
 
