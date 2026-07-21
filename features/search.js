@@ -1,162 +1,311 @@
 /**
  * Search feature for DocsEngine.
- * Build-indexed site search with sidebar search box.
+ * Versioned full-text index, Unicode-aware ranking, accessible sidebar UI.
  */
 
 (function (global) {
   "use strict";
 
   var searchIndex = null;
-  var config = null;
-  var manifest = null;
 
-  async function loadSearchIndex() {
-    if (searchIndex) return searchIndex;
-
-    try {
-      var resp = await fetch("/search-index.json", { cache: "no-cache" });
-      if (!resp.ok) throw new Error("Search index HTTP " + resp.status);
-      searchIndex = await resp.json();
-      return searchIndex;
-    } catch (e) {
-      console.warn("Failed to load search index:", e);
-      return [];
-    }
+  function normalizeText(text) {
+    return String(text || "")
+      .normalize("NFKC")
+      .toLocaleLowerCase()
+      .replace(/[\p{P}\p{S}]+/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function tokenize(text) {
-    return text.toLowerCase().split(/\s+/).filter(Boolean);
+    var normalized = normalizeText(text);
+    return normalized ? normalized.split(" ").filter(Boolean) : [];
   }
 
-  function matchScore(query, item) {
-    var queryTokens = tokenize(query);
-    var titleTokens = tokenize(item.title);
-    var textTokens = tokenize(item.text);
+  function normalizeIndexPayload(payload, expectedBuildId) {
+    if (Array.isArray(payload)) {
+      return { schemaVersion: 1, buildId: null, entries: payload };
+    }
+    if (!payload || payload.schemaVersion !== 2 || !Array.isArray(payload.entries)) {
+      throw new Error("Unsupported or invalid search index schema");
+    }
+    if (expectedBuildId && payload.buildId !== expectedBuildId) {
+      throw new Error("Search index buildId does not match manifest");
+    }
+    return payload;
+  }
 
-    var titleMatches = 0;
-    var textMatches = 0;
+  function tokenFieldScore(token, normalizedTitle, normalizedHeadings, normalizedTags, normalizedBody) {
+    if (normalizedTitle === token) return 180;
+    if (normalizedTitle.startsWith(token + " ")) return 120;
+    if (normalizedTitle.includes(token)) return 90;
+    if (normalizedHeadings.includes(token)) return 45;
+    if (normalizedTags.includes(token)) return 30;
+    if (normalizedBody.includes(token)) return 8;
+    return 0;
+  }
+
+  function createSnippet(text, queryTokens, maxLength) {
+    var source = String(text || "").replace(/\s+/g, " ").trim();
+    var limit = maxLength || 180;
+    if (!source || source.length <= limit) return source;
+
+    var normalized = normalizeText(source);
+    var positions = queryTokens
+      .map(function (token) { return normalized.indexOf(token); })
+      .filter(function (position) { return position >= 0; });
+    var firstMatch = positions.length ? Math.min.apply(Math, positions) : 0;
+    var start = Math.max(0, firstMatch - Math.floor(limit / 3));
+    var end = Math.min(source.length, start + limit);
+    if (end - start < limit) start = Math.max(0, end - limit);
+    var snippet = source.slice(start, end).trim();
+    if (start > 0) snippet = "…" + snippet;
+    if (end < source.length) snippet += "…";
+    return snippet;
+  }
+
+  function scoreItem(query, item) {
+    var queryTokens = tokenize(query);
+    if (!queryTokens.length) return null;
+
+    var normalizedQuery = normalizeText(query);
+    var normalizedTitle = normalizeText(item.title);
+    var normalizedHeadings = normalizeText((item.headings || []).join(" "));
+    var normalizedTags = normalizeText((item.tags || []).join(" "));
+    var normalizedBody = normalizeText(item.text);
+    var score = normalizedTitle === normalizedQuery ? 600 : 0;
+    var matched = 0;
 
     queryTokens.forEach(function (token) {
-      titleTokens.forEach(function (ttoken) {
-        if (ttoken.includes(token)) titleMatches++;
-      });
-      textTokens.forEach(function (ttoken) {
-        if (ttoken.includes(token)) textMatches++;
-      });
+      var tokenScore = tokenFieldScore(
+        token,
+        normalizedTitle,
+        normalizedHeadings,
+        normalizedTags,
+        normalizedBody
+      );
+      if (tokenScore > 0) matched += 1;
+      score += tokenScore;
     });
 
-    return titleMatches * 10 + textMatches;
+    if (!matched) return null;
+    score += Math.round((matched / queryTokens.length) * 80);
+    if (matched === queryTokens.length) score += 120;
+    return {
+      item: item,
+      score: score,
+      matchedTokens: matched,
+      snippet: createSnippet(item.text, queryTokens, 180),
+    };
   }
 
-  function search(query, index) {
-    if (!query.trim()) return [];
+  function search(query, entries, limit) {
+    if (!String(query || "").trim()) return [];
+    return (entries || [])
+      .map(function (item) { return scoreItem(query, item); })
+      .filter(Boolean)
+      .sort(function (a, b) {
+        if (b.score !== a.score) return b.score - a.score;
+        return String(a.item.title).localeCompare(String(b.item.title));
+      })
+      .slice(0, limit || 10);
+  }
 
-    var results = [];
-    index.forEach(function (item) {
-      var score = matchScore(query, item);
-      if (score > 0) {
-        results.push({ item: item, score: score });
-      }
-    });
+  function labelsFor(config) {
+    var labels = (config && config.searchLabels) || {};
+    return {
+      placeholder: labels.placeholder || "Search...",
+      ariaLabel: labels.ariaLabel || "Search documentation",
+      noResults: labels.noResults || "No results",
+      loading: labels.loading || "Loading search index...",
+      unavailable: labels.unavailable || "Search index is unavailable",
+      resultsLabel: labels.resultsLabel || "Search results",
+    };
+  }
 
-    results.sort(function (a, b) { return b.score - a.score; });
-    return results.slice(0, 10).map(function (r) { return r.item; });
+  async function fetchSearchIndex(manifest) {
+    if (searchIndex) return searchIndex;
+    var response = await fetch("/search-index.json", { cache: "no-cache" });
+    if (!response.ok) throw new Error("Search index HTTP " + response.status);
+    var payload = await response.json();
+    searchIndex = normalizeIndexPayload(
+      payload,
+      manifest && manifest.search ? manifest.search.buildId : null
+    );
+    return searchIndex;
+  }
+
+  function navigateTo(path) {
+    if (window.DocsEngine && typeof window.DocsEngine.routeTo === "function") {
+      window.DocsEngine.routeTo(path);
+      return;
+    }
+    location.hash = "#/" + path;
   }
 
   async function initSearch(opts) {
-    config = opts.config || {};
-    manifest = opts.manifest || {};
+    var config = opts.config || {};
+    var manifest = opts.manifest || {};
+    var labels = labelsFor(config);
+    var sidebarHeader = document.querySelector(".sidebar-header");
+    if (!sidebarHeader || document.querySelector(".search-box-container")) return;
 
-    var index = await loadSearchIndex();
-    if (!index || index.length === 0) {
-      console.warn("Search index empty or not found");
+    var container = document.createElement("div");
+    container.className = "search-box-container";
+
+    var input = document.createElement("input");
+    input.type = "search";
+    input.className = "search-box-input";
+    input.placeholder = labels.placeholder;
+    input.setAttribute("aria-label", labels.ariaLabel);
+    input.setAttribute("aria-controls", "docs-search-results");
+    input.setAttribute("aria-expanded", "false");
+    input.disabled = true;
+
+    var status = document.createElement("div");
+    status.className = "search-status";
+    status.setAttribute("role", "status");
+    status.textContent = labels.loading;
+
+    var resultsContainer = document.createElement("div");
+    resultsContainer.id = "docs-search-results";
+    resultsContainer.className = "search-results";
+    resultsContainer.setAttribute("role", "listbox");
+    resultsContainer.setAttribute("aria-label", labels.resultsLabel);
+    resultsContainer.hidden = true;
+
+    container.appendChild(input);
+    container.appendChild(status);
+    container.appendChild(resultsContainer);
+    sidebarHeader.parentNode.insertBefore(container, sidebarHeader.nextSibling);
+
+    var entries;
+    try {
+      entries = (await fetchSearchIndex(manifest)).entries;
+      if (!entries.length) throw new Error("Search index contains no entries");
+      status.textContent = "";
+      status.hidden = true;
+      input.disabled = false;
+    } catch (error) {
+      status.textContent = labels.unavailable;
+      status.classList.add("error");
+      input.disabled = true;
+      console.error("Failed to initialize search:", error);
       return;
     }
 
-    var sidebarHeader = document.querySelector(".sidebar-header");
-    if (!sidebarHeader) return;
-
-    // Create search box
-    var searchContainer = document.createElement("div");
-    searchContainer.className = "search-box-container";
-    searchContainer.style.marginTop = "1rem";
-
-    var searchInput = document.createElement("input");
-    searchInput.type = "text";
-    searchInput.className = "search-box-input";
-    searchInput.placeholder = "Search...";
-    searchInput.setAttribute("aria-label", "Search documentation");
-
-    var resultsContainer = document.createElement("div");
-    resultsContainer.className = "search-results";
-    resultsContainer.hidden = true;
-
-    searchContainer.appendChild(searchInput);
-    searchContainer.appendChild(resultsContainer);
-    sidebarHeader.parentNode.insertBefore(searchContainer, sidebarHeader.nextSibling);
-
     var debounceTimer = null;
+    var resultLinks = [];
+    var activeIndex = -1;
 
-    searchInput.addEventListener("input", function (e) {
-      clearTimeout(debounceTimer);
-      var query = e.target.value;
+    function setExpanded(expanded) {
+      resultsContainer.hidden = !expanded;
+      input.setAttribute("aria-expanded", String(expanded));
+    }
 
-      if (!query.trim()) {
-        resultsContainer.hidden = true;
+    function setActive(nextIndex) {
+      resultLinks.forEach(function (link, index) {
+        var selected = index === nextIndex;
+        link.classList.toggle("active", selected);
+        link.setAttribute("aria-selected", String(selected));
+      });
+      activeIndex = nextIndex;
+      if (activeIndex >= 0) resultLinks[activeIndex].scrollIntoView({ block: "nearest" });
+    }
+
+    function closeResults(clearInput) {
+      setExpanded(false);
+      setActive(-1);
+      if (clearInput) input.value = "";
+    }
+
+    function renderResults(query) {
+      var results = search(query, entries, 15);
+      resultsContainer.innerHTML = "";
+      resultLinks = [];
+      activeIndex = -1;
+
+      if (!results.length) {
+        var empty = document.createElement("div");
+        empty.className = "search-result-empty";
+        empty.textContent = labels.noResults;
+        resultsContainer.appendChild(empty);
+        setExpanded(true);
         return;
       }
 
-      debounceTimer = setTimeout(function () {
-        var results = search(query, index);
-        resultsContainer.innerHTML = "";
+      results.forEach(function (result) {
+        var link = document.createElement("a");
+        link.href = "#/" + result.item.path;
+        link.className = "search-result-item";
+        link.setAttribute("role", "option");
+        link.setAttribute("aria-selected", "false");
 
-        if (results.length === 0) {
-          resultsContainer.innerHTML = '<div class="search-result-item">No results</div>';
-          resultsContainer.hidden = false;
-          return;
-        }
+        var title = document.createElement("strong");
+        title.className = "search-result-title";
+        title.textContent = result.item.title;
 
-        results.forEach(function (result) {
-          var item = document.createElement("a");
-          item.href = "#/" + result.path;
-          item.className = "search-result-item";
-          item.textContent = result.title;
-          item.addEventListener("click", function (e) {
-            e.preventDefault();
-            // Route to the doc
-            if (window.routeTo) {
-              window.routeTo(result.path);
-            } else {
-              location.hash = "#/" + result.path;
-            }
-            searchInput.value = "";
-            resultsContainer.hidden = true;
-          });
-          resultsContainer.appendChild(item);
+        var meta = document.createElement("span");
+        meta.className = "search-result-meta";
+        meta.textContent = [result.item.section, result.item.path].filter(Boolean).join(" · ");
+
+        var snippet = document.createElement("span");
+        snippet.className = "search-result-snippet";
+        snippet.textContent = result.snippet;
+
+        link.appendChild(title);
+        link.appendChild(meta);
+        link.appendChild(snippet);
+        link.addEventListener("click", function (event) {
+          event.preventDefault();
+          navigateTo(result.item.path);
+          closeResults(true);
         });
+        resultsContainer.appendChild(link);
+        resultLinks.push(link);
+      });
+      setExpanded(true);
+    }
 
-        resultsContainer.hidden = false;
-      }, 200);
+    input.addEventListener("input", function (event) {
+      clearTimeout(debounceTimer);
+      var query = event.target.value;
+      if (!query.trim()) {
+        closeResults(false);
+        return;
+      }
+      debounceTimer = setTimeout(function () { renderResults(query); }, 200);
     });
 
-    // Close results on ESC
-    searchInput.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") {
-        resultsContainer.hidden = true;
-        searchInput.value = "";
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        closeResults(true);
+        return;
+      }
+      if (!resultLinks.length || resultsContainer.hidden) return;
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setActive((activeIndex + 1) % resultLinks.length);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setActive((activeIndex - 1 + resultLinks.length) % resultLinks.length);
+      } else if (event.key === "Enter" && activeIndex >= 0) {
+        event.preventDefault();
+        resultLinks[activeIndex].click();
       }
     });
 
-    // Close results when clicking elsewhere
-    document.addEventListener("click", function (e) {
-      if (!searchContainer.contains(e.target)) {
-        resultsContainer.hidden = true;
-      }
+    document.addEventListener("click", function (event) {
+      if (!container.contains(event.target)) closeResults(false);
     });
   }
 
   global.DocsEngineFeatures = global.DocsEngineFeatures || {};
   global.DocsEngineFeatures.search = {
     initSearch: initSearch,
+    normalizeIndexPayload: normalizeIndexPayload,
+    search: search,
+    tokenize: tokenize,
+    createSnippet: createSnippet,
   };
 })(typeof window !== "undefined" ? window : this);

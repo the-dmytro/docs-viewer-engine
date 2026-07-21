@@ -97,21 +97,37 @@
       // Hash/mailto
       if (href.startsWith("#") || href.startsWith("mailto:")) return;
 
+      // Known docs always stay inside the wiki, even when their folder name
+      // also matches an external sibling-repository alias.
+      if (/\.(md|mmd|sql)(#.*)?$/i.test(href)) {
+        var split = href.split("#");
+        var target = resolveDocHref(split[0], currentDoc);
+        if (manifest && manifest.titles && manifest.titles[target]) {
+          var hash = split[1] ? "#" + split[1] : "";
+          anchor.setAttribute("href", "#/" + target + hash);
+          anchor.addEventListener("click", function (event) {
+            event.preventDefault();
+            routeTo(target);
+          });
+          return;
+        }
+      }
+
       // External repo link (Casta)
       if (isExternalRepoLink(href)) {
         anchor.classList.add("link-external-repo");
         return;
       }
 
-      // Doc links
-      if (/\.(md|mmd|sql)$/i.test(href)) {
-        var split = href.split("#");
-        var target = resolveDocHref(split[0], currentDoc);
-        var hash = split[1] ? "#" + split[1] : "";
-        anchor.setAttribute("href", "#/" + target + hash);
+      // Unknown docs still route through the viewer and surface its explicit
+      // load error instead of silently navigating away from the SPA.
+      if (/\.(md|mmd|sql)(#.*)?$/i.test(href)) {
+        var unknownSplit = href.split("#");
+        var unknownTarget = resolveDocHref(unknownSplit[0], currentDoc);
+        anchor.setAttribute("href", "#/" + unknownTarget);
         anchor.addEventListener("click", function (event) {
           event.preventDefault();
-          routeTo(target);
+          routeTo(unknownTarget);
         });
       }
     });
@@ -155,8 +171,11 @@
   }
 
   // Check if folder/tree node should be open
-  function shouldOpenNode(nodeId, activePath) {
-    return activePath === nodeId || activePath.startsWith(nodeId + "/");
+  function shouldOpenNode(node, activePath) {
+    if (activePath === node.id || activePath.startsWith(node.id + "/")) return true;
+    return (node.children || []).some(function (child) {
+      return shouldOpenNode(child, activePath);
+    });
   }
 
   // Build tree node recursively (supports nested tree)
@@ -166,7 +185,7 @@
     if (node.children && node.children.length > 0) {
       // Folder with children
       var details = document.createElement("details");
-      if (shouldOpenNode(node.id, activePath)) details.open = true;
+      if (shouldOpenNode(node, activePath)) details.open = true;
 
       var summary = document.createElement("summary");
       summary.textContent = node.label;
@@ -191,7 +210,7 @@
     } else if (node.docs && node.docs.length > 0) {
       // Leaf node with docs
       var detailsLeaf = document.createElement("details");
-      if (shouldOpenNode(node.id, activePath)) detailsLeaf.open = true;
+      if (shouldOpenNode(node, activePath)) detailsLeaf.open = true;
 
       var summaryLeaf = document.createElement("summary");
       summaryLeaf.textContent = node.label;
@@ -345,8 +364,13 @@
         var mermaidEl = document.querySelector(".mermaid");
         if (mermaidEl) mermaidEl.textContent = text.trim();
         await loadFeature("mermaid", "runMermaid", function (feature) {
-          if (feature && feature.runMermaid) feature.runMermaid();
+          if (feature && feature.runMermaid) return feature.runMermaid();
         });
+        if (config.features.diagrams) {
+          await loadFeature("diagram-viewer", "enhanceAll", function (feature) {
+            if (feature && feature.enhanceAll) feature.enhanceAll();
+          });
+        }
         return;
       }
 
@@ -379,8 +403,13 @@
       // Run mermaid if present
       if (config.features && config.features.mermaid) {
         await loadFeature("mermaid", "runMermaid", function (feature) {
-          if (feature && feature.runMermaid) feature.runMermaid();
+          if (feature && feature.runMermaid) return feature.runMermaid();
         });
+        if (config.features.diagrams) {
+          await loadFeature("diagram-viewer", "enhanceAll", function (feature) {
+            if (feature && feature.enhanceAll) feature.enhanceAll();
+          });
+        }
       }
 
       // Handle map blocks if feature enabled
@@ -409,17 +438,23 @@
   // Load feature on-demand
   function loadFeature(featureName, featureExport, callback) {
     if (featuresLoaded[featureName]) {
-      callback(featuresLoaded[featureName]);
-      return Promise.resolve();
+      return Promise.resolve(callback(featuresLoaded[featureName]));
     }
 
     return new Promise(function (resolve) {
       var script = document.createElement("script");
-      script.src = "/web/engine/features/" + featureName + ".js";
+      var assetVersion = config && config.assetVersion
+        ? "?v=" + encodeURIComponent(config.assetVersion)
+        : "";
+      script.src = "/web/engine/features/" + featureName + ".js" + assetVersion;
       script.onload = function () {
         if (window.DocsEngineFeatures && window.DocsEngineFeatures[featureName]) {
           featuresLoaded[featureName] = window.DocsEngineFeatures[featureName];
-          callback(featuresLoaded[featureName]);
+          Promise.resolve(callback(featuresLoaded[featureName])).then(resolve, function (error) {
+            console.warn("Feature initialization failed: " + featureName, error);
+            resolve();
+          });
+          return;
         }
         resolve();
       };
@@ -514,5 +549,5 @@
   }
 
   // Export
-  global.DocsEngine = { init: init };
+  global.DocsEngine = { init: init, routeTo: routeTo };
 })(typeof window !== "undefined" ? window : this);

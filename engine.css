@@ -307,6 +307,25 @@ body {
   border-radius: 6px;
 }
 
+/* Search feature: themes can override colors without redefining positioning. */
+.search-box-container {
+  position: relative;
+  box-sizing: border-box;
+}
+
+.search-box-input {
+  box-sizing: border-box;
+}
+
+.search-results[hidden],
+.search-status[hidden] {
+  display: none;
+}
+
+.search-result-item {
+  cursor: pointer;
+}
+
 /* Mermaid diagram styles */
 .article .mermaid {
   display: flex;
