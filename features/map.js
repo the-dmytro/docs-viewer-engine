@@ -109,11 +109,13 @@
       url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
       attribution: "&copy; OpenStreetMap contributors",
       maxZoom: 19,
+      subdomains: "abc",
     },
     dark: {
       url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
       attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
       maxZoom: 19,
+      subdomains: "abcd",
     },
   };
 
@@ -121,8 +123,43 @@
     return window.matchMedia("(prefers-color-scheme: dark)");
   }
 
+  function cssColorToLuminance(color) {
+    color = (color || "").trim();
+    if (!color) return null;
+
+    var rgb = null;
+    if (color.charAt(0) === "#") {
+      var hex = color.slice(1);
+      if (hex.length === 3) {
+        hex = hex.split("").map(function (ch) { return ch + ch; }).join("");
+      }
+      if (hex.length === 6) {
+        rgb = {
+          r: parseInt(hex.slice(0, 2), 16),
+          g: parseInt(hex.slice(2, 4), 16),
+          b: parseInt(hex.slice(4, 6), 16),
+        };
+      }
+    } else {
+      var match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (match) {
+        rgb = { r: +match[1], g: +match[2], b: +match[3] };
+      }
+    }
+
+    if (!rgb) return null;
+    return 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
+  }
+
   function isDarkTheme() {
-    return getColorSchemeQuery().matches;
+    var root = document.documentElement;
+    var tileTheme = getComputedStyle(root).getPropertyValue("--map-tile-theme").trim();
+    if (tileTheme === "dark") return true;
+    if (tileTheme === "light") return false;
+    if (getColorSchemeQuery().matches) return true;
+
+    var lum = cssColorToLuminance(getComputedStyle(root).getPropertyValue("--bg"));
+    return lum !== null && lum < 140;
   }
 
   function createTileLayer(L, dark) {
@@ -130,6 +167,7 @@
     return L.tileLayer(theme.url, {
       attribution: theme.attribution,
       maxZoom: theme.maxZoom,
+      subdomains: theme.subdomains,
     });
   }
 

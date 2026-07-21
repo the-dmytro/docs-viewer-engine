@@ -147,8 +147,8 @@
     var config = opts.config || {};
     var manifest = opts.manifest || {};
     var labels = labelsFor(config);
-    var sidebarHeader = document.querySelector(".sidebar-header");
-    if (!sidebarHeader || document.querySelector(".search-box-container")) return;
+    var sidebarContent = document.querySelector(".sidebar-content");
+    if (!sidebarContent || document.querySelector(".search-box-container")) return;
 
     var container = document.createElement("div");
     container.className = "search-box-container";
@@ -177,7 +177,7 @@
     container.appendChild(input);
     container.appendChild(status);
     container.appendChild(resultsContainer);
-    sidebarHeader.parentNode.insertBefore(container, sidebarHeader.nextSibling);
+    sidebarContent.insertBefore(container, sidebarContent.firstChild);
 
     var entries;
     try {
