@@ -131,6 +131,13 @@ run({
   skipDirs: new Set([".git", ".vercel", "web", "scripts", "node_modules"]),
   rootNavFiles: ["README.md", "GUIDE.md"],
   folderLabels: { guides: "Guides", api: "API Reference" },
+  sectionGroups: [
+    { id: "product", label: "Product", sections: ["guides"] }
+  ],
+  search: {
+    exclude: [/(^|\\/)transcripts\\/.*-raw\\.md$/i],
+    tagsBySection: { api: ["contract"] }
+  },
   outputDir: ".",
 });
 ```
@@ -148,6 +155,8 @@ The engine builds a generic recursive tree manifest:
 
 ```json
 {
+  "schemaVersion": 2,
+  "buildId": "2026-07-21T...",
   "generatedAt": "2026-07-06T...",
   "rootDocs": [
     { "path": "README.md", "title": "Home" }
@@ -161,16 +170,20 @@ The engine builds a generic recursive tree manifest:
     }
   ],
   "titles": { "README.md": "Home", "guides/intro.md": "..." },
-  "hasSearch": true
+  "hasSearch": true,
+  "search": { "schemaVersion": 2, "buildId": "2026-07-21T...", "count": 2 }
 }
 ```
 
 And a separate `search-index.json`:
 ```json
-[
-  { "path": "README.md", "title": "Home", "text": "..." },
-  { "path": "guides/intro.md", "title": "...", "text": "..." }
-]
+{
+  "schemaVersion": 2,
+  "buildId": "2026-07-21T...",
+  "entries": [
+    { "path": "README.md", "title": "Home", "headings": [], "text": "...", "section": "Documentation", "tags": [] }
+  ]
+}
 ```
 
 ## Features in Depth
@@ -178,10 +191,12 @@ And a separate `search-index.json`:
 ### Search
 Enabled via `features.search: true`. Requires `search-index.json` built by manifest builder.
 - Debounced input (200ms)
-- Token-based matching (title weighted 10x over body)
-- Top 10 results
-- ESC to close
-- Click to navigate
+- Unicode-aware tokenization and multi-token coverage
+- Ranking: exact title → title prefix → headings/tags → body
+- Full-text snippets and configurable localized labels
+- `ArrowUp`, `ArrowDown`, `Enter`, `Escape` keyboard flow
+- Explicit unavailable state for missing, invalid, or mismatched indexes
+- Legacy array index remains readable during migration
 
 ### Mermaid
 Enabled via `features.mermaid: true`. Supports:

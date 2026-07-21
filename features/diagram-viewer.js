@@ -388,4 +388,6 @@
   }
 
   global.DiagramViewer = { enhanceAll: enhanceAll, openLightbox: openLightbox };
+  global.DocsEngineFeatures = global.DocsEngineFeatures || {};
+  global.DocsEngineFeatures["diagram-viewer"] = global.DiagramViewer;
 })(typeof window !== "undefined" ? window : this);
