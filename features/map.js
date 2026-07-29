@@ -40,66 +40,102 @@
     return _leafletPromise;
   }
 
+  var EVIDENCE_BINS = {
+    strong: { color: "#15803d", label: "Strong" },
+    partial: { color: "#2563eb", label: "Partial" },
+    weak: { color: "#d97706", label: "Weak" },
+    "not-researched": { color: "#6b7280", label: "Не досліджено" },
+  };
+
   var ASPECTS = {
+    readiness: {
+      id: "readiness",
+      label: "Готовність до наступного кроку",
+      get: function (loc) { return loc.readiness; },
+      bins: {
+        "deep-dive": { color: "#15803d", label: "Готово до deep dive" },
+        comparison: { color: "#2563eb", label: "Готово до порівняння" },
+        discovery: { color: "#6b7280", label: "Лише discovery" },
+        "budget-mismatch": { color: "#b91c1c", label: "Порівняння, але budget mismatch" },
+      },
+    },
     fit: {
       id: "fit",
-      label: "Fit Summary",
-      get: function (loc) { return loc.aspects.fit; },
+      label: "Гіпотеза відповідності",
+      get: function (loc) { return loc.fit; },
       bins: {
-        strong: { color: "#2ecc71", label: "Strong" },
-        potential: { color: "#f39c12", label: "Potential" },
-        compromise: { color: "#e74c3c", label: "Compromise" },
-        unranked: { color: "#95a5a6", label: "Unranked" },
+        strong: { color: "#15803d", label: "Сильна" },
+        potential: { color: "#2563eb", label: "Перспективна" },
+        conditional: { color: "#d97706", label: "Умовна / budget-sensitive" },
+        compromise: { color: "#b45309", label: "Компромісна" },
+        unranked: { color: "#6b7280", label: "Ще не оцінено" },
       },
+    },
+    schoolEvidence: {
+      id: "schoolEvidence",
+      label: "Дослідженість шкіл",
+      get: function (loc) { return loc.evidence.school; },
+      bins: EVIDENCE_BINS,
+    },
+    housingEvidence: {
+      id: "housingEvidence",
+      label: "Дослідженість житла",
+      get: function (loc) { return loc.evidence.housing; },
+      bins: EVIDENCE_BINS,
+    },
+    transportEvidence: {
+      id: "transportEvidence",
+      label: "Дослідженість транспорту",
+      get: function (loc) { return loc.evidence.transport; },
+      bins: EVIDENCE_BINS,
+    },
+    communityEvidence: {
+      id: "communityEvidence",
+      label: "Дослідженість community",
+      get: function (loc) { return loc.evidence.community; },
+      bins: EVIDENCE_BINS,
     },
     bcnAccess: {
       id: "bcnAccess",
-      label: "Barcelona Access",
-      get: function (loc) { return loc.aspects.bcnAccess; },
+      label: "Зв'язок із Барселоною",
+      get: function (loc) { return loc.bcnAccess; },
       bins: {
-        close: { color: "#27ae60", label: "Close (≤30m)" },
-        medium: { color: "#f1c40f", label: "Medium (30–60m)" },
-        far: { color: "#c0392b", label: "Far / Car-only" },
+        close: { color: "#15803d", label: "Barcelona orbit" },
+        medium: { color: "#d97706", label: "Extended commuter orbit" },
+        far: { color: "#b91c1c", label: "Regional / не для daily BCN" },
       },
     },
     carDependency: {
       id: "carDependency",
-      label: "Car Dependency",
-      get: function (loc) { return loc.aspects.carDependency; },
+      label: "Автозалежність",
+      get: function (loc) { return loc.carDependency; },
       bins: {
-        low: { color: "#27ae60", label: "Low" },
-        medium: { color: "#f39c12", label: "Medium" },
-        high: { color: "#e74c3c", label: "High" },
+        low: { color: "#15803d", label: "Низька" },
+        medium: { color: "#d97706", label: "Середня" },
+        high: { color: "#b91c1c", label: "Висока" },
+        unknown: { color: "#6b7280", label: "Не встановлено" },
       },
     },
-    international: {
-      id: "international",
-      label: "International Family Signal",
-      get: function (loc) { return loc.aspects.international; },
+    schoolAnchor: {
+      id: "schoolAnchor",
+      label: "Шкільний якір",
+      get: function (loc) { return loc.schoolAnchor; },
       bins: {
-        high: { color: "#8e44ad", label: "High" },
-        medium: { color: "#3498db", label: "Medium" },
-        low: { color: "#95a5a6", label: "Low/Unknown" },
+        direct: { color: "#0f766e", label: "Безпосередньо в unit" },
+        nearby: { color: "#2563eb", label: "Поруч" },
+        "route-hypothesis": { color: "#d97706", label: "Route hypothesis" },
+        "not-established": { color: "#6b7280", label: "Не встановлено" },
       },
     },
-    school: {
-      id: "school",
-      label: "School Anchor",
-      get: function (loc) { return loc.aspects.school; },
+    claimStatus: {
+      id: "claimStatus",
+      label: "Канонічний статус тверджень",
+      get: function (loc) { return loc.claimStatus; },
       bins: {
-        direct: { color: "#16a085", label: "Direct in-town" },
-        nearby: { color: "#2980b9", label: "Nearby ecosystem" },
-        none: { color: "#7f8c8d", label: "None identified" },
-      },
-    },
-    status: {
-      id: "status",
-      label: "Data Status",
-      get: function (loc) { return loc.aspects.status; },
-      bins: {
-        confirmed: { color: "#27ae60", label: "Confirmed" },
-        likely: { color: "#f39c12", label: "Likely" },
-        "needs-verification": { color: "#e67e22", label: "Needs verification" },
+        "chat-confirmed": { color: "#15803d", label: "Підтверджено в чаті" },
+        likely: { color: "#2563eb", label: "Ймовірно / висновок" },
+        "needs-verification": { color: "#d97706", label: "Потребує перевірки" },
+        "not-researched": { color: "#6b7280", label: "Ще не досліджено" },
       },
     },
   };
@@ -181,11 +217,31 @@
     if (_mapDataCache) return Promise.resolve(_mapDataCache);
 
     return fetch("/web/map-data.json")
-      .then(function (resp) { return resp.json(); })
-      .then(function (data) {
-        _mapDataCache = data;
-        return data;
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("Map data HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function (payload) {
+        var normalized = Array.isArray(payload)
+          ? { updatedAt: null, source: null, locations: payload }
+          : payload;
+
+        if (!normalized || !Array.isArray(normalized.locations)) {
+          throw new Error("Invalid map data");
+        }
+
+        _mapDataCache = normalized;
+        return normalized;
       });
+  }
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 
   async function initMap(container, opts) {
@@ -202,8 +258,9 @@
       container._mapThemeHandler = null;
     }
 
-    var locations = await getMapData();
-    var currentAspect = "fit";
+    var mapData = await getMapData();
+    var locations = mapData.locations;
+    var currentAspect = "readiness";
 
     container.classList.add("map-shell");
     if (embed) {
@@ -213,12 +270,23 @@
     }
     container.innerHTML = "";
 
+    var summaryDiv = document.createElement("div");
+    summaryDiv.className = "map-data-summary";
+    var summaryText = locations.length + " decision units";
+    if (mapData.updatedAt) summaryText += " · актуалізовано " + mapData.updatedAt;
+    summaryDiv.innerHTML = '<span>' + escapeHtml(summaryText) + '</span>';
+    if (mapData.source) {
+      summaryDiv.innerHTML += '<a href="#/' + escapeHtml(mapData.source) + '">Coverage dashboard</a>';
+    }
+
     var switcherDiv = document.createElement("div");
     switcherDiv.className = "map-switcher-container";
+    switcherDiv.setAttribute("role", "group");
+    switcherDiv.setAttribute("aria-label", "Шар даних мапи");
 
     var canvas = document.createElement("div");
     canvas.className = "map-canvas";
-    canvas.setAttribute("aria-label", "Interactive map");
+    canvas.setAttribute("aria-label", "Інтерактивна мапа досліджених локацій");
 
     var legendDiv = document.createElement("div");
     legendDiv.className = "map-legend";
@@ -226,6 +294,7 @@
     legendContent.className = "map-legend-content";
     legendDiv.appendChild(legendContent);
 
+    container.appendChild(summaryDiv);
     container.appendChild(switcherDiv);
     container.appendChild(canvas);
     container.appendChild(legendDiv);
@@ -256,18 +325,37 @@
       var value = aspect.get(loc);
       var bin = aspect.bins[value];
       var label = bin ? bin.label : value;
+      var readiness = ASPECTS.readiness.bins[loc.readiness];
+      var profilePath = loc.profilePath || ("cities/" + loc.id + ".md");
+      var profileLabel = loc.profileLabel || "Відкрити досьє";
 
       var html = '<div class="map-popup">' +
-        '<div class="map-popup-name">' + loc.name + '</div>' +
+        '<div class="map-popup-name">' + escapeHtml(loc.name) + '</div>' +
         '<div class="map-popup-meta">' +
-        '<strong>' + aspect.label + ':</strong> ' + label +
+        '<strong>' + escapeHtml(aspect.label) + ':</strong> ' + escapeHtml(label) +
         '</div>';
 
       if (loc.group) {
-        html += '<div class="map-popup-group">' + loc.group + '</div>';
+        html += '<div class="map-popup-group">' + escapeHtml(loc.group) + '</div>';
       }
 
-      html += '<a href="#/cities/' + loc.slug + '" class="map-popup-link">Open profile →</a>' +
+      if (currentAspect !== "readiness" && readiness) {
+        html += '<div class="map-popup-meta"><strong>Наступний крок:</strong> ' +
+          escapeHtml(readiness.label) + '</div>';
+      }
+
+      if (loc.freshness) {
+        html += '<div class="map-popup-detail"><strong>Evidence:</strong> ' +
+          escapeHtml(loc.freshness) + '</div>';
+      }
+
+      if (loc.decisionGate) {
+        html += '<div class="map-popup-detail"><strong>Gate:</strong> ' +
+          escapeHtml(loc.decisionGate) + '</div>';
+      }
+
+      html += '<a href="#/' + escapeHtml(profilePath) + '" class="map-popup-link">' +
+        escapeHtml(profileLabel) + ' →</a>' +
         '</div>';
 
       return html;
@@ -319,9 +407,13 @@
       var html = '<div class="map-legend-title">' + aspect.label + '</div>';
       Object.keys(aspect.bins).forEach(function (value) {
         var bin = aspect.bins[value];
+        var count = locations.filter(function (loc) {
+          return aspect.get(loc) === value;
+        }).length;
+        if (!count) return;
         html += '<div class="map-legend-item">' +
           '<span class="map-legend-color" style="background-color: ' + bin.color + '"></span>' +
-          '<span>' + bin.label + '</span>' +
+          '<span>' + bin.label + ' <span class="map-legend-count">' + count + '</span></span>' +
           '</div>';
       });
       legendContent.innerHTML = html;
@@ -334,6 +426,8 @@
         var btn = document.createElement("button");
         btn.className = "map-switcher-btn";
         if (aspect.id === currentAspect) btn.classList.add("active");
+        btn.type = "button";
+        btn.setAttribute("aria-pressed", String(aspect.id === currentAspect));
         btn.textContent = aspect.label;
         btn.onclick = function () {
           currentAspect = aspect.id;

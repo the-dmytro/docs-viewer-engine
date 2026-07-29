@@ -207,10 +207,44 @@ Enabled via `features.mermaid: true`. Supports:
 ### Map
 Enabled via `features.map: true`. For Family guide:
 - Leaflet-based interactive map
-- Aspect switcher (6 aspects)
-- Legend + color-coded markers
+- Segmented aspect switcher (readiness, fit, four evidence layers, Barcelona access, car dependency, school anchor, claim status)
+- Legend counts + color-coded markers
+- Popup freshness, next decision gate and explicit document route
 - Embedded in markdown via ` ```map ` blocks
 - Full-page view at `#/map` (requires integration in loader)
+
+`/web/map-data.json` accepts the legacy location array or schema v2:
+
+```json
+{
+  "schemaVersion": 2,
+  "updatedAt": "YYYY-MM-DD",
+  "source": "tables/research-coverage-dashboard.md",
+  "locations": [
+    {
+      "id": "example",
+      "name": "Example",
+      "lat": 41.0,
+      "lng": 2.0,
+      "profilePath": "cities/example.md",
+      "readiness": "comparison",
+      "fit": "potential",
+      "bcnAccess": "medium",
+      "carDependency": "medium",
+      "schoolAnchor": "nearby",
+      "claimStatus": "needs-verification",
+      "evidence": {
+        "school": "partial",
+        "transport": "partial",
+        "housing": "partial",
+        "community": "weak"
+      },
+      "freshness": "Evidence date or boundary",
+      "decisionGate": "Next concrete verification"
+    }
+  ]
+}
+```
 
 ### Diagram Viewer (Casta)
 Lightbox viewer for Mermaid diagrams. Auto-enabled when `mermaid` feature is active.

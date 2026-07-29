@@ -547,14 +547,20 @@
         : (config.sidebarCollapseLabel || "←");
     }
 
-    function setSidebarCollapsed(collapsed) {
+    function applySidebarCollapsed(collapsed) {
       sidebar.classList.toggle("collapsed", collapsed);
       if (layoutEl) layoutEl.classList.toggle("sidebar-collapsed", collapsed);
-      localStorage.setItem(storageKey, String(collapsed));
       updateToggleButton(collapsed);
     }
 
-    setSidebarCollapsed(localStorage.getItem(storageKey) === "true");
+    function setSidebarCollapsed(collapsed) {
+      applySidebarCollapsed(collapsed);
+      localStorage.setItem(storageKey, String(collapsed));
+    }
+
+    var storedState = localStorage.getItem(storageKey);
+    var defaultCollapsed = window.matchMedia("(max-width: 768px)").matches;
+    applySidebarCollapsed(storedState === null ? defaultCollapsed : storedState === "true");
 
     sidebarToggle.addEventListener("click", function (event) {
       event.stopPropagation();
