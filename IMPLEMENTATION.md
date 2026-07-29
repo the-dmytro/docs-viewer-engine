@@ -8,8 +8,9 @@
 - `engine.css` — загальна layout/accessibility поведінка без package-specific палітри.
 - `build/manifest.mjs` — generic builder для navigation manifest і versioned full-text index.
 - `features/search.js` — Unicode-aware search, ranking, snippets, keyboard flow та index validation.
+- `features/map.js` — Leaflet map, schema-v2 map data, aspect switching, marker legends і profile routing.
 - `features/mermaid.js` і `features/diagram-viewer.js` — rendering, pan/zoom і fullscreen.
-- Package-specific taxonomy, labels і theme залишаються в parent repo: `scripts/build-manifest.mjs`, `web/app-config.js`, `web/theme.css`.
+- Package-specific taxonomy, labels, map data і theme залишаються в parent repo: `scripts/build-manifest.mjs`, `web/app-config.js`, `web/map-data.json`, `web/theme.css`.
 
 ## Builder contract
 
@@ -29,4 +30,4 @@ Parent repos додатково запускають власний manifest bui
 
 ## Статус публікації
 
-Engine зміни перебувають на окремій локальній гілці `wiki-grouped-nav-search`. Commit, push і оновлення parent gitlink не виконуються без окремого дозволу.
+Engine публікується окремим commit до parent gitlink update. Parent repo має посилатися лише на вже доступний remote commit.
