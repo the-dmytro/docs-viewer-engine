@@ -529,51 +529,115 @@
     loadMarkdown(path);
   }
 
-  // Setup sidebar collapse
+  function resolveInitialCollapsed(storedState, isNarrow) {
+    if (isNarrow) return true;
+    return storedState === "true";
+  }
+
+  // Setup sidebar collapse: desktop in-flow hide, mobile off-canvas drawer.
   function setupSidebarCollapse() {
-    if (!sidebarToggle || !sidebar) return;
+    if (!sidebar) return;
 
     var storageKey = "docs-engine-sidebar-collapsed";
-    var layoutEl = sidebar.closest(".layout");
+    var layoutEl = sidebar.closest(".layout") || document.body;
+    var narrowQuery = window.matchMedia("(max-width: 768px)");
+    var openBtn = document.getElementById("sidebarOpenBtn");
+    var backdrop = document.querySelector(".sidebar-backdrop");
 
-    function updateToggleButton(collapsed) {
-      sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
-      sidebarToggle.setAttribute(
-        "aria-label",
-        collapsed ? (config.sidebarExpandLabel || "Expand menu") : (config.sidebarCollapseLabel || "Collapse menu")
-      );
-      sidebarToggle.textContent = collapsed
-        ? "☰"
-        : (config.sidebarCollapseLabel || "←");
+    if (!backdrop) {
+      backdrop = document.createElement("button");
+      backdrop.type = "button";
+      backdrop.className = "sidebar-backdrop";
+      backdrop.setAttribute("tabindex", "-1");
+      document.body.appendChild(backdrop);
+    }
+
+    if (!openBtn) {
+      openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.id = "sidebarOpenBtn";
+      openBtn.className = "sidebar-open-btn";
+      openBtn.setAttribute("aria-controls", "sidebar");
+      openBtn.textContent = "☰";
+      document.body.appendChild(openBtn);
     }
 
     function applySidebarCollapsed(collapsed) {
+      var expandLabel = config.sidebarExpandLabel || "Open menu";
+      var collapseLabel = config.sidebarCollapseLabel || "Close menu";
+
       sidebar.classList.toggle("collapsed", collapsed);
-      if (layoutEl) layoutEl.classList.toggle("sidebar-collapsed", collapsed);
-      updateToggleButton(collapsed);
+      sidebar.setAttribute("aria-hidden", String(collapsed));
+      layoutEl.classList.toggle("sidebar-collapsed", collapsed);
+      document.body.classList.toggle("sidebar-collapsed", collapsed);
+      document.body.classList.toggle("sidebar-open", !collapsed);
+
+      openBtn.setAttribute("aria-expanded", "false");
+      openBtn.setAttribute("aria-label", expandLabel);
+      backdrop.setAttribute("aria-label", collapseLabel);
+
+      if (sidebarToggle) {
+        sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+        sidebarToggle.setAttribute("aria-label", collapseLabel);
+        sidebarToggle.textContent = config.sidebarCollapseLabel || "✕";
+      }
     }
 
-    function setSidebarCollapsed(collapsed) {
+    function setSidebarCollapsed(collapsed, persist) {
       applySidebarCollapsed(collapsed);
-      localStorage.setItem(storageKey, String(collapsed));
+      if (persist !== false && !narrowQuery.matches) {
+        localStorage.setItem(storageKey, String(collapsed));
+      }
     }
 
-    var storedState = localStorage.getItem(storageKey);
-    var defaultCollapsed = window.matchMedia("(max-width: 768px)").matches;
-    applySidebarCollapsed(storedState === null ? defaultCollapsed : storedState === "true");
+    function applyForViewport() {
+      setSidebarCollapsed(
+        resolveInitialCollapsed(localStorage.getItem(storageKey), narrowQuery.matches),
+        false
+      );
+    }
 
-    sidebarToggle.addEventListener("click", function (event) {
+    applyForViewport();
+
+    if (sidebarToggle) {
+      sidebarToggle.addEventListener("click", function (event) {
+        event.stopPropagation();
+        setSidebarCollapsed(true);
+      });
+    }
+
+    openBtn.addEventListener("click", function (event) {
       event.stopPropagation();
-      setSidebarCollapsed(!sidebar.classList.contains("collapsed"));
+      setSidebarCollapsed(false);
     });
 
-    // Keyboard shortcut (Cmd+\ or Ctrl+\)
+    backdrop.addEventListener("click", function () {
+      setSidebarCollapsed(true);
+    });
+
+    if (sidebarEl) {
+      sidebarEl.addEventListener("click", function (event) {
+        if (narrowQuery.matches && event.target.closest("a")) {
+          setSidebarCollapsed(true);
+        }
+      });
+    }
+
     document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && !sidebar.classList.contains("collapsed") && narrowQuery.matches) {
+        setSidebarCollapsed(true);
+      }
       if ((event.metaKey || event.ctrlKey) && event.key === "\\") {
         event.preventDefault();
         setSidebarCollapsed(!sidebar.classList.contains("collapsed"));
       }
     });
+
+    if (typeof narrowQuery.addEventListener === "function") {
+      narrowQuery.addEventListener("change", applyForViewport);
+    } else if (typeof narrowQuery.addListener === "function") {
+      narrowQuery.addListener(applyForViewport);
+    }
   }
 
   // Initialize engine
@@ -627,5 +691,9 @@
   }
 
   // Export
-  global.DocsEngine = { init: init, routeTo: routeTo };
+  global.DocsEngine = {
+    init: init,
+    routeTo: routeTo,
+    resolveInitialCollapsed: resolveInitialCollapsed,
+  };
 })(typeof window !== "undefined" ? window : this);
