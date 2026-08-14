@@ -13,8 +13,9 @@ A shared, generalized markdown documentation viewer for browser-based SPA docs.
   - **mermaid** — diagram rendering (.mmd, inline blocks)
   - **diagrams** — lightbox viewer for mermaid (Casta)
   - **map** — interactive Leaflet maps with aspect switching (Family)
-- Mobile-responsive design
-- Persistent sidebar collapse with keyboard shortcut (`Cmd+\` or `Ctrl+\`)
+- Mobile off-canvas sidebar, concealed by default, with a hamburger control and backdrop
+- Desktop sidebar can hide completely (not a leaking icon rail); state persists via `localStorage`
+- Keyboard shortcut (`Cmd+\` or `Ctrl+\`) to toggle the sidebar
 - Accessibility: ARIA labels, keyboard navigation, semantic HTML
 
 ## Integration
@@ -89,13 +90,13 @@ body[data-section="cities"] {
   <link rel="stylesheet" href="/web/theme.css" />
 </head>
 <body>
-  <div class="layout">
-    <aside class="sidebar" id="sidebar">
+  <div class="layout sidebar-collapsed">
+    <aside class="sidebar collapsed" id="sidebar" aria-hidden="true">
       <div class="sidebar-header">
         <a id="brandLink" href="#/README.md" style="flex: 1;">
           <strong id="brand">My Docs</strong>
         </a>
-        <button id="sidebarToggle" aria-expanded="true">✕</button>
+        <button id="sidebarToggle" aria-expanded="false">✕</button>
       </div>
       <div class="sidebar-content">
         <nav id="sidebarNav"></nav>
@@ -275,7 +276,7 @@ Lightbox viewer for Mermaid diagrams. Auto-enabled when `mermaid` feature is act
 
 - **Manifest 404**: Run `node scripts/build-manifest.mjs` to regenerate.
 - **Features not loading**: Check browser console for CSP/CORS issues. Ensure feature JS files are at `/web/engine/features/*.js`.
-- **Sidebar not collapsing**: Verify `#sidebarToggle` and `#sidebar` exist in HTML.
+- **Sidebar not collapsing**: Verify `#sidebar` exists. The engine injects `#sidebarOpenBtn` and a backdrop; on viewports ≤768px the drawer starts concealed.
 - **Search empty**: Check that `search-index.json` was generated and is being served.
 
 ## License
