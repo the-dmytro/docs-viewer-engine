@@ -34,41 +34,22 @@ body {
   top: 0;
   height: 100vh;
   overflow: hidden;
-  transition: width 0.25s ease;
+  transition: width 0.25s ease, transform 0.25s ease, visibility 0.25s ease;
 }
 
 .sidebar.collapsed {
-  width: var(--sidebar-rail-width, 3.25rem);
-  min-width: var(--sidebar-rail-width, 3.25rem);
+  width: 0;
+  min-width: 0;
+  border-right-width: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
 }
 
-.sidebar.collapsed .sidebar-content {
+.sidebar.collapsed .sidebar-content,
+.sidebar.collapsed .search-box-container,
+.sidebar.collapsed .search-status {
   display: none;
-}
-
-.sidebar.collapsed .sidebar-header {
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 0.75rem 0.375rem;
-  gap: 0.5rem;
-}
-
-.sidebar.collapsed #brandLink,
-.sidebar.collapsed .tagline {
-  display: none;
-}
-
-.sidebar.collapsed #sidebarToggle {
-  width: 2.5rem;
-  height: 2.5rem;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.125rem;
-  line-height: 1;
-  flex-shrink: 0;
 }
 
 .main {
@@ -122,6 +103,44 @@ body {
 #sidebarToggle:hover,
 .sidebar-toggle:hover {
   background: var(--surface-alt);
+}
+
+.sidebar-open-btn {
+  display: none;
+  position: fixed;
+  top: 0.7rem;
+  left: 0.7rem;
+  z-index: 220;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  box-shadow: var(--shadow);
+  align-items: center;
+  justify-content: center;
+}
+
+.layout.sidebar-collapsed .sidebar-open-btn,
+body.sidebar-collapsed .sidebar-open-btn {
+  display: inline-flex;
+}
+
+.layout.sidebar-collapsed .breadcrumb {
+  padding-left: 4.25rem;
+}
+
+.sidebar-backdrop {
+  display: none;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
 }
 
 .sidebar-content,
@@ -502,29 +521,53 @@ body {
   }
 }
 
-/* Mobile responsive */
+/* Mobile: off-canvas drawer, concealed unless opened */
 @media (max-width: 768px) {
   .layout {
-    flex-direction: column;
+    display: block;
   }
 
   .sidebar {
-    width: 100%;
-    height: auto;
-    position: sticky;
+    position: fixed;
     top: 0;
-    max-height: 60vh;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
+    left: 0;
+    z-index: 210;
+    width: min(20rem, 88vw);
+    height: 100dvh;
+    max-height: none;
+    border-right: 1px solid var(--border);
+    border-bottom: none;
+    transform: translateX(-100%);
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .sidebar.collapsed {
-    width: 100%;
+    width: min(20rem, 88vw);
     min-width: 0;
+    border-right-width: 1px;
+    transform: translateX(-100%);
+    visibility: hidden;
+    pointer-events: none;
   }
 
-  .sidebar.collapsed .sidebar-content {
-    display: none;
+  .sidebar:not(.collapsed) {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  body.sidebar-open {
+    overflow: hidden;
+  }
+
+  body.sidebar-open .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(20, 16, 12, 0.45);
+    cursor: pointer;
   }
 
   .article {
@@ -534,6 +577,10 @@ body {
   .breadcrumb {
     padding: 0.75rem 1rem;
     font-size: 0.9rem;
+  }
+
+  .layout.sidebar-collapsed .breadcrumb {
+    padding-left: 4.25rem;
   }
 
   .sidebar-header {
