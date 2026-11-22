@@ -27,6 +27,9 @@
           }
         }, 50);
       };
+      script.onerror = function () {
+        resolve();
+      };
       document.body.appendChild(script);
     });
 
@@ -56,7 +59,7 @@
 
     mermaid.initialize({
       startOnLoad: false,
-      securityLevel: "loose",
+      securityLevel: "strict",
       theme: mermaidTheme(),
     });
 
