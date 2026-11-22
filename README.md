@@ -17,6 +17,20 @@ A shared, generalized markdown documentation viewer for browser-based SPA docs.
 - Desktop sidebar can hide completely (not a leaking icon rail); state persists via `localStorage`
 - Keyboard shortcut (`Cmd+\` or `Ctrl+\`) to toggle the sidebar
 - Accessibility: ARIA labels, keyboard navigation, semantic HTML
+- Security: rendered markdown HTML is sanitized with vendored DOMPurify before DOM insertion; link/image URL schemes are allowlisted (`javascript:` and friends are stripped); mermaid runs with `securityLevel: "strict"`; error messages are HTML-escaped
+
+## Vendored dependencies
+
+All runtime dependencies are vendored under `vendor/` (no package.json, no CDN at runtime):
+
+| File | Package | Version | Notes |
+| --- | --- | --- | --- |
+| `vendor/marked.min.js` | [marked](https://github.com/markedjs/marked) | 18.2.1 | UMD build minified with esbuild; sets `window.marked`; lazy-loaded by the engine on first markdown render |
+| `vendor/dompurify.min.js` | [DOMPurify](https://github.com/cure53/DOMPurify) | 3.4.18 | UMD; sets `window.DOMPurify`; sanitizes marked output; lazy-loaded by the engine |
+| `vendor/mermaid.min.js` | [mermaid](https://github.com/mermaid-js/mermaid) | 12.3.0 | classic script, sets `globalThis.mermaid`; lazy-loaded by the mermaid feature |
+| `vendor/leaflet.js` / `vendor/leaflet.css` | [Leaflet](https://github.com/Leaflet/Leaflet) | 1.9.4 | latest stable release; lazy-loaded by the map feature |
+
+The engine lazy-loads `marked` and `DOMPurify` itself, so adding them to `index.html` is optional (an existing `<script>` tag is detected and reused). Bump by replacing the file in `vendor/` and updating the version in its header comment.
 
 ## Integration
 
@@ -204,6 +218,7 @@ Enabled via `features.mermaid: true`. Supports:
 - `.mmd` files displayed full-page
 - Inline ` ```mermaid ` blocks in markdown
 - Auto-responds to dark mode changes
+- Always rendered with `securityLevel: "strict"` (HTML labels/click handlers are sanitized)
 
 ### Map
 Enabled via `features.map: true`. For Family guide:

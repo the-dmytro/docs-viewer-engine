@@ -20,7 +20,33 @@
 
   // Utility: normalize and encode paths
   function normalizePath(p) {
-    return decodeURIComponent(p).replace(/^\/+/, "").replace(/\\/g, "/");
+    var decoded = p;
+    try {
+      decoded = decodeURIComponent(p);
+    } catch (error) {
+      decoded = p;
+    }
+    return decoded.replace(/^\/+/, "").replace(/\\/g, "/");
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  // Allow relative URLs plus a small scheme allowlist; reject javascript:, data:, vbscript:, etc.
+  function isSafeUrl(url, allowDataImages) {
+    var value = String(url || "").trim();
+    var scheme = /^([a-z][a-z0-9+.-]*):/i.exec(value);
+    if (!scheme) return true;
+    var name = scheme[1].toLowerCase();
+    if (name === "http" || name === "https" || name === "mailto") return true;
+    if (allowDataImages && name === "data" && /^data:image\//i.test(value)) return true;
+    return false;
   }
 
   function pathFromHash() {
@@ -87,6 +113,12 @@
       var href = anchor.getAttribute("href");
       if (!href) return;
 
+      // Never keep executable URL schemes (javascript:, data:, vbscript:, ...)
+      if (!isSafeUrl(href, false)) {
+        anchor.removeAttribute("href");
+        return;
+      }
+
       // External links
       if (/^https?:\/\//i.test(href)) {
         anchor.setAttribute("target", "_blank");
@@ -135,7 +167,12 @@
     // Rewrite image paths
     div.querySelectorAll("img[src]").forEach(function (img) {
       var src = img.getAttribute("src");
-      if (!src || /^https?:\/\//i.test(src) || src.startsWith("data:")) return;
+      if (!src) return;
+      if (!isSafeUrl(src, true)) {
+        img.removeAttribute("src");
+        return;
+      }
+      if (/^https?:\/\//i.test(src) || src.startsWith("data:")) return;
       var parts = dirname(currentDoc) ? dirname(currentDoc).split("/") : [];
       src.split("/").forEach(function (part) {
         if (part === "..") parts.pop();
@@ -339,7 +376,7 @@
   function showError(message) {
     if (articleEl) {
       articleEl.classList.remove("loading");
-      articleEl.innerHTML = '<p class="error-msg">' + message + "</p>";
+      articleEl.innerHTML = '<p class="error-msg">' + escapeHtml(message) + "</p>";
     }
   }
 
@@ -439,20 +476,34 @@
         return;
       }
 
-      // Markdown
-      var html = marked.parse(text, { gfm: true, breaks: false });
+      // Markdown: lazy-load the renderer and sanitizer, then sanitize before DOM insertion
+      await ensureVendorScript("/web/engine/vendor/dompurify.min.js", "DOMPurify");
+      await ensureVendorScript("/web/engine/vendor/marked.min.js", "marked");
+      if (!global.marked || typeof global.marked.parse !== "function") {
+        showError("Markdown renderer failed to load");
+        return;
+      }
+
+      var html = global.marked.parse(text, { gfm: true, breaks: false });
+      var safeHtml = sanitizeHtml(html);
+      if (safeHtml === null) {
+        console.warn("DOMPurify unavailable; rendering document as plain text");
+        if (articleEl) articleEl.textContent = text;
+      }
 
       // Promote mermaid blocks if feature enabled
-      if (config.features && config.features.mermaid) {
+      if (config.features && config.features.mermaid && safeHtml !== null) {
         await loadFeature("mermaid", "promoteMermaidBlocks", function (feature) {
           if (feature && feature.promoteMermaidBlocks) {
-            html = feature.promoteMermaidBlocks(html);
+            safeHtml = feature.promoteMermaidBlocks(safeHtml);
           }
         });
       }
 
-      html = rewriteLinks(html, path);
-      if (articleEl) articleEl.innerHTML = html;
+      if (safeHtml !== null) {
+        safeHtml = rewriteLinks(safeHtml, path);
+        if (articleEl) articleEl.innerHTML = safeHtml;
+      }
 
       // Run mermaid if present
       if (config.features && config.features.mermaid) {
@@ -487,6 +538,36 @@
       showError("Unable to load " + path + ": " + error.message);
       console.error(error);
     }
+  }
+
+  // Load a vendored script on demand (skipped when the global already exists)
+  var vendorScriptPromises = {};
+
+  function ensureVendorScript(src, globalName) {
+    if (vendorScriptPromises[src]) return vendorScriptPromises[src];
+    vendorScriptPromises[src] = new Promise(function (resolve) {
+      if (global[globalName]) {
+        resolve();
+        return;
+      }
+      var script = document.createElement("script");
+      script.src = src;
+      script.onload = function () { resolve(); };
+      script.onerror = function () {
+        console.warn("Failed to load vendor script: " + src);
+        resolve();
+      };
+      document.body.appendChild(script);
+    });
+    return vendorScriptPromises[src];
+  }
+
+  // Returns sanitized HTML, or null when the sanitizer is unavailable (caller fails closed)
+  function sanitizeHtml(html) {
+    if (global.DOMPurify && typeof global.DOMPurify.sanitize === "function") {
+      return global.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+    }
+    return null;
   }
 
   // Load feature on-demand
@@ -695,5 +776,8 @@
     init: init,
     routeTo: routeTo,
     resolveInitialCollapsed: resolveInitialCollapsed,
+    normalizePath: normalizePath,
+    escapeHtml: escapeHtml,
+    isSafeUrl: isSafeUrl,
   };
 })(typeof window !== "undefined" ? window : this);
