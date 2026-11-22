@@ -32,6 +32,8 @@ All runtime dependencies are vendored under `vendor/` (no package.json, no CDN a
 
 The engine lazy-loads `marked` and `DOMPurify` itself, so adding them to `index.html` is optional (an existing `<script>` tag is detected and reused). Bump by replacing the file in `vendor/` and updating the version in its header comment.
 
+The root `package.json` only pins these versions (exact, no ranges) so [Dependabot](.github/dependabot.yml) can open update/security PRs for them — the runtime never loads `node_modules`. When such a PR lands, sync the matching `vendor/` file and its header comment.
+
 ## Integration
 
 ### 1. Add as git submodule
