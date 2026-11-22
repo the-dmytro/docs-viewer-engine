@@ -1,0 +1,13 @@
+{
+  "name": "docs-viewer-engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DocsEngine docs viewer. This manifest exists only so Dependabot can track the versions of the libraries vendored in vendor/ (see .github/dependabot.yml); the runtime loads vendor/ files directly, not node_modules.",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "dompurify": "3.4.18",
+    "leaflet": "1.9.4",
+    "marked": "18.2.1",
+    "mermaid": "12.3.0"
+  }
+}
